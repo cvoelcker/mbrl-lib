@@ -30,6 +30,16 @@ def _get_term_and_reward_fn(
     return term_fn, reward_fn
 
 
+def _get_dummy_term_and_reward_fn() -> Tuple[mbrl.types.TermFnType, Optional[mbrl.types.RewardFnType]]:
+    def reward_dummy(x, y):
+        return torch.zeros_like(x)[:, 0]
+
+    def term_dummy(x, y):
+        return torch.zeros_like(x)[:, 0]
+
+    return term_dummy, reward_dummy
+
+
 def _handle_learned_rewards_and_seed(
     cfg: Union[omegaconf.ListConfig, omegaconf.DictConfig],
     env: gym.Env,
@@ -49,9 +59,12 @@ def _handle_learned_rewards_and_seed(
 def _legacy_make_env(
     cfg: Union[omegaconf.ListConfig, omegaconf.DictConfig],
 ) -> Tuple[gym.Env, mbrl.types.TermFnType, Optional[mbrl.types.RewardFnType]]:
-    if "dmcontrol___" in cfg.overrides.env:
+    if "d4rl___" in cfg.overrides.env:
+        import d4rl
+        env = gym.make(cfg.overrides.env.split("___")[1])
+        term_fn, reward_fn = _get_dummy_term_and_reward_fn()
+    elif "dmcontrol___" in cfg.overrides.env:
         import mbrl.third_party.dmc2gym as dmc2gym
-
         domain, task = cfg.overrides.env.split("___")[1].split("--")
         term_fn, reward_fn = _get_term_and_reward_fn(cfg)
         env = dmc2gym.make(domain_name=domain, task_name=task)

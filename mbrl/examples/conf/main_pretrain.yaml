@@ -1,15 +1,26 @@
 defaults:
-  - algorithm: mbpo
-  - model_pretraining: no_pretrain
+  - algorithm: model_pretrain
   - dynamics_model: gaussian_mlp_ensemble
-  - overrides: mbpo_cartpole
-  - action_optimizer: cem
+
+overrides:
+  env: ${train_dataset}
+  num_steps: 0
+  epoch_length: 1000
+  num_elites: 5
+  patience: 10
+  model_lr: 0.0003
+  model_wd: 0.00002
+  model_batch_size: 256
+  validation_ratio: 0.2
+  freq_train_model: 250
 
 seed: 0
 device: "cuda:0"
 log_frequency_agent: 1000
 save_video: false
 debug_mode: false
+train_dataset: d4rl___ant-medium-expert-v2
+test_dataset: ${train_dataset}
 
 experiment: default
 

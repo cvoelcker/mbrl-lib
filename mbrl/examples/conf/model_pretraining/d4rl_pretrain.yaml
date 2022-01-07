@@ -1,0 +1,11 @@
+# @package _group_
+name: "d4rl pretrain"
+
+log_pretrain: true
+log_pretrain_freq: 1000
+
+train_dataset: d4rl___ant-medium-expert-v2
+test_dataset: ${model_pretraining.train_dataset}
+
+initial_exploration_steps: 0
+add_initial_to_rl_buffer: true

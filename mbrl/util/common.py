@@ -177,6 +177,7 @@ def create_replay_buffer(
     dataset_size = (
         cfg.algorithm.get("dataset_size", None) if "algorithm" in cfg else None
     )
+
     if not dataset_size:
         dataset_size = cfg.overrides.num_steps
     maybe_max_trajectory_len = None
@@ -357,6 +358,43 @@ def get_sequence_buffer_iterator(
             val_iterator.toggle_bootstrap()
 
     return train_iterator, val_iterator
+
+
+def merge_replay_buffer(buffer1: ReplayBuffer, buffer2: ReplayBuffer, cfg: omegaconf.DictConfig):
+    """Merges two replay buffers.
+
+    Args:
+        buffer1 (ReplayBuffer): the first buffer to be merged.
+        buffer2 (ReplayBuffer): the second buffer to be merged.
+        cfg (omegaconf.DictConfig): the config for the replay buffer.
+
+    Returns:
+        (ReplayBuffer): a new replay buffer containing the data from both buffers.
+    """
+    
+    replay_buffer = create_replay_buffer(
+        cfg,
+        buffer1.obs.shape[1:],
+        buffer1.action.shape[1:],
+        rng=buffer1.rng,
+        obs_type=buffer1.obs.dtype,
+        action_type=buffer1.action.dtype,
+        reward_type=buffer1.reward.dtype,
+    )
+
+    # asserting "greater to" prevent dealing with full buffers
+    assert replay_buffer.capacity > buffer1.num_stored + buffer2.num_stored, \
+        "Capactiy of combined buffer must be greater than the sum of trajectories in the two buffers."
+
+    replay_buffer.num_stored = buffer1.num_stored + buffer2.num_stored
+    replay_buffer.cur_idx = buffer1.cur_idx + buffer2.cur_idx
+
+    replay_buffer.obs[:replay_buffer.num_stored] = np.concatenate([buffer1.obs[:buffer1.num_stored], buffer2.obs[:buffer2.num_stored]], axis=0)
+    replay_buffer.action[:replay_buffer.num_stored] = np.concatenate([buffer1.action[:buffer1.num_stored], buffer2.action[:buffer2.num_stored]], axis=0)
+    replay_buffer.reward[:replay_buffer.num_stored] = np.concatenate([buffer1.reward[:buffer1.num_stored], buffer2.reward[:buffer2.num_stored]], axis=0)
+    replay_buffer.done[:replay_buffer.num_stored] = np.concatenate([buffer1.done[:buffer1.num_stored], buffer2.done[:buffer2.num_stored]], axis=0)
+
+    return replay_buffer
 
 
 def train_model_and_save_model_and_data(

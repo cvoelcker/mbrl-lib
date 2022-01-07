@@ -45,11 +45,14 @@ class ReplayBuffer(object):
             np.copyto(self.actions[buffer_slice], action[batch_slice])
             np.copyto(self.rewards[buffer_slice], reward[batch_slice])
             np.copyto(self.next_obses[buffer_slice], next_obs[batch_slice])
-            np.copyto(self.not_dones[buffer_slice], np.logical_not(done[batch_slice]))
-            np.copyto(
-                self.not_dones_no_max[buffer_slice],
-                np.logical_not(done_no_max[batch_slice]),
-            )
+            dones = np.logical_not(done[batch_slice])
+            if len(dones.shape) == 1:
+                dones = dones[:, None]
+            np.copyto(self.not_dones[buffer_slice], dones)
+            dones_no_max = np.logical_not(done_no_max[batch_slice])
+            if len(dones_no_max.shape) == 1:
+                dones_no_max = dones_no_max[:, None]
+            np.copyto(self.not_dones_no_max[buffer_slice], dones_no_max)
 
         _batch_start = 0
         buffer_end = self.idx + len(obs)

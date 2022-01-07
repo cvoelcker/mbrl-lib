@@ -1,0 +1,11 @@
+# @package _group_
+name: "no pretrain"
+
+log_pretrain: true
+log_pretrain_freq: 1000
+
+train_dataset: false
+test_dataset: false
+
+initial_exploration_steps: 5000
+add_initial_to_rl_buffer: true

@@ -20,6 +20,7 @@ import mbrl.util
 import mbrl.util.common
 import mbrl.util.math
 from mbrl.planning.sac_wrapper import SACAgent
+from mbrl.algorithms.model_train import train as model_pretrain
 
 MBPO_LOG_FORMAT = mbrl.constants.EVAL_LOG_FORMAT + [
     ("epoch", "E", "int"),
@@ -59,7 +60,7 @@ def rollout_model_and_populate_sac_buffer(
             pred_dones[~accum_dones],
         )
         obs = pred_next_obs
-        accum_dones |= pred_dones.squeeze()
+        accum_dones |= pred_dones.squeeze().astype(bool)
 
 
 def evaluate(
@@ -144,7 +145,6 @@ def train(
         torch_generator.manual_seed(cfg.seed)
 
     # -------------- Create initial overrides. dataset --------------
-    dynamics_model = mbrl.util.common.create_one_dim_tr_model(cfg, obs_shape, act_shape)
     use_double_dtype = cfg.algorithm.get("normalize_double_precision", False)
     dtype = np.double if use_double_dtype else np.float32
     replay_buffer = mbrl.util.common.create_replay_buffer(
@@ -156,15 +156,44 @@ def train(
         action_type=dtype,
         reward_type=dtype,
     )
-    random_explore = cfg.algorithm.random_initial_explore
-    mbrl.util.common.rollout_agent_trajectories(
-        env,
-        cfg.algorithm.initial_exploration_steps,
-        mbrl.planning.RandomAgent(env) if random_explore else agent,
-        {} if random_explore else {"sample": True, "batched": False},
-        replay_buffer=replay_buffer,
+    # check if d4rl preloading or model disk loading is enabled
+    if cfg.model_pretraining.name == "d4rl pretrain":
+        # copy over the model loading and training
+        dynamics_model, model_trainer, model_pretrain_dataset = model_pretrain(env, cfg)
+        if cfg.model_pretraining.add_initial_to_rl_buffer:
+            replay_buffer = mbrl.util.common.merge_replay_buffer(replay_buffer, model_pretrain_dataset, cfg)
+        if cfg.get("model_pretraining.no_inital_explore", False):
+            random_explore = cfg.algorithm.random_initial_explore
+            mbrl.util.common.rollout_agent_trajectories(
+                env,
+                cfg.algorithm.initial_exploration_steps,
+                mbrl.planning.RandomAgent(env) if random_explore else agent,
+                {} if random_explore else {"sample": True, "batched": False},
+                replay_buffer=replay_buffer,
+            )
+    elif cfg.model_pretraining.name == "disk load":
+        # implement reloading routine
+        raise NotImplementedError("disk loading not implemented")
+    elif cfg.model_pretraining.name == "no pretrain":
+        # copy the below
+        dynamics_model = mbrl.util.common.create_one_dim_tr_model(cfg, obs_shape, act_shape)
+        random_explore = cfg.algorithm.random_initial_explore
+        mbrl.util.common.rollout_agent_trajectories(
+            env,
+            cfg.algorithm.initial_exploration_steps,
+            mbrl.planning.RandomAgent(env) if random_explore else agent,
+            {} if random_explore else {"sample": True, "batched": False},
+            replay_buffer=replay_buffer,
+        )
+        model_trainer = mbrl.models.ModelTrainer(
+            dynamics_model,
+            optim_lr=cfg.overrides.model_lr,
+            weight_decay=cfg.overrides.model_wd,
+            logger=None if silent else logger,
     )
-
+    else:
+        raise ValueError(f"Unknown model_pretrain name: {cfg.model_pretrain.name}")
+    
     # ---------------------------------------------------------
     # --------------------- Training Loop ---------------------
     rollout_batch_size = (
@@ -177,12 +206,6 @@ def train(
     env_steps = 0
     model_env = mbrl.models.ModelEnv(
         env, dynamics_model, termination_fn, None, generator=torch_generator
-    )
-    model_trainer = mbrl.models.ModelTrainer(
-        dynamics_model,
-        optim_lr=cfg.overrides.model_lr,
-        weight_decay=cfg.overrides.model_wd,
-        logger=None if silent else logger,
     )
     best_eval_reward = -np.inf
     epoch = 0

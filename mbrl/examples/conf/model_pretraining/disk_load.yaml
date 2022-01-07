@@ -1,0 +1,7 @@
+# @package _group_
+name: "disk load"
+
+initial_exploration_steps: 0
+add_initial_to_rl_buffer: true
+model_path: ???
+load_data: false

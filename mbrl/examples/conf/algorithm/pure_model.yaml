@@ -1,0 +1,7 @@
+# @package _group_
+name: "model_pretrain"
+
+normalize: true
+normalize_double_precision: true
+target_is_delta: true
+learned_rewards: true
